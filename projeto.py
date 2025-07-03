@@ -232,10 +232,10 @@ def analyze_graph(G):
 
 # Visualização do grafo
 def visualize_graph_improved(G):
-    plt.figure(figsize=(16, 12))
+    plt.figure(figsize=(20, 15))
     
-    # Filtrar arestas para mostrar apenas as mais significativas
-    edges_to_keep = [(u, v) for u, v, d in G.edges(data=True) if d['weight'] > 1]
+    # Filtrar arestas para mostrar apenas as mais significativas e copiar seus atributos
+    edges_to_keep = [(u, v, d) for u, v, d in G.edges(data=True) if d.get('weight', 0) > 1]
     filtered_G = nx.Graph()
     filtered_G.add_edges_from(edges_to_keep)
     
@@ -245,9 +245,36 @@ def visualize_graph_improved(G):
         filtered_G.nodes[node]['is_hero'] = G.nodes[node]['is_hero']
         filtered_G.nodes[node]['power_level'] = G.nodes[node]['power_level']
     
-    # Definir paleta de cores mais contrastante
-    hero_color = '#1f78b4'  # Azul mais forte
-    villain_color = '#e31a1c'  # Vermelho mais vivo
+    # Dicionário de abreviações para os nomes
+    abbreviations = {
+        "Tony Stark": "Tony",
+        "Steve Rogers": "Steve",
+        "Thor": "Thor",
+        "Bruce Banner": "Bruce",
+        "Natasha Romanoff": "Natasha",
+        "Clint Barton": "Clint",
+        "Nick Fury": "Fury",
+        "Pepper Potts": "Pepper",
+        "Peter Parker": "Peter P.",
+        "Stephen Strange": "Dr. Strange",
+        "T'Challa": "T'Challa",
+        "Wanda Maximoff": "Wanda",
+        "Vision": "Vision",
+        "Scott Lang": "Scott",
+        "Loki": "Loki",
+        "Thanos": "Thanos",
+        "Peter Quill": "Star-Lord",
+        "Gamora": "Gamora",
+        "Drax": "Drax",
+        "Rocket": "Rocket",
+        "Groot": "Groot",
+        "Carol Danvers": "Carol"
+    }
+    
+    # Definir paleta de cores
+    hero_color = '#1f78b4'  # Azul para heróis
+    villain_color = '#e31a1c'  # Vermelho para vilões
+    special_edge_color = '#ff7f00'  # Laranja para a conexão especial
     
     colors = []
     for node in filtered_G.nodes():
@@ -259,22 +286,41 @@ def visualize_graph_improved(G):
     # Layout mais espaçado
     pos = nx.kamada_kawai_layout(filtered_G, weight='weight')
     
-    # Tamanho dos nós com escala não-linear para melhor visualização
+    # Tamanho dos nós
     base_size = 800
     sizes = [base_size * (filtered_G.nodes[node]['power_level']**1.5 / 20) for node in filtered_G.nodes()]
     
-    # Desenhar arestas com largura e transparência variável
-    edge_weights = [filtered_G[u][v]['weight'] for u, v in filtered_G.edges()]
-    edge_alphas = [min(0.2 + 0.8 * (w/max(edge_weights)), 0.7) for w in edge_weights]
+    # Identificar a aresta mais forte do Tony Stark
+    tony_edges = [(u, v, d) for u, v, d in filtered_G.edges(data=True) 
+                 if "Tony Stark" in (u, v)]
     
+    if tony_edges:
+        strongest_edge = max(tony_edges, key=lambda x: x[2].get('weight', 0))
+        print(f"\nConexão mais forte do Tony Stark: {strongest_edge[0]} -- {strongest_edge[1]} (peso: {strongest_edge[2].get('weight', 0)})")
+    
+    # Preparar cores e larguras das arestas
+    edge_colors = []
+    edge_widths = []
+    for u, v, d in filtered_G.edges(data=True):
+        weight = d.get('weight', 1)
+        edge_widths.append(weight/2)
+        
+        # Verifica se é a aresta mais forte do Tony
+        if ("Tony Stark" in (u, v)) and (u == strongest_edge[0] and v == strongest_edge[1] or 
+                                        u == strongest_edge[1] and v == strongest_edge[0]):
+            edge_colors.append(special_edge_color)
+        else:
+            edge_colors.append('#888888')
+    
+    # Desenhar arestas normais
     nx.draw_networkx_edges(
         filtered_G, pos, 
-        width=np.array(edge_weights)/2, 
-        alpha=edge_alphas,
-        edge_color='#888888'
+        width=edge_widths, 
+        alpha=0.5,
+        edge_color=edge_colors
     )
     
-    # Desenhar nós com bordas escuras
+    # Desenhar nós
     nx.draw_networkx_nodes(
         filtered_G, pos,
         node_size=sizes,
@@ -284,24 +330,19 @@ def visualize_graph_improved(G):
         linewidths=1.5
     )
     
-    # Desenhar labels apenas para personagens importantes
-    important_chars = {
-        "Tony Stark", "Steve Rogers", "Thor", "Bruce Banner", 
-        "Natasha Romanoff", "Nick Fury", "Peter Parker", "Thanos",
-        "Loki", "T'Challa", "Wanda Maximoff", "Peter Quill"
-    }
+    # Labels para todos os nós
+    labels = {node: abbreviations.get(node, node.split()[0]) for node in filtered_G.nodes()}
     
-    labels = {node: node if node in important_chars else '' for node in filtered_G.nodes()}
     nx.draw_networkx_labels(
         filtered_G, pos, labels,
-        font_size=9,
+        font_size=8,
         font_family='sans-serif',
         font_weight='bold',
-        bbox=dict(facecolor='white', alpha=0.7, edgecolor='none', pad=1)
+        bbox=dict(facecolor='white', alpha=0.7, edgecolor='none', pad=0.5)
     )
     
-    # Adicionar título e legenda
-    plt.title("Rede de Interações do MCU (Filtrada para conexões mais relevantes)", fontsize=14, pad=20)
+    # Título e legenda
+    plt.title("Rede do MCU - Conexão mais forte do Tony Stark destacada", fontsize=16, pad=20)
     
     # Legenda melhorada
     legend_elements = [
@@ -309,7 +350,8 @@ def visualize_graph_improved(G):
                   markerfacecolor=hero_color, markersize=10),
         plt.Line2D([0], [0], marker='o', color='w', label='Vilão',
                   markerfacecolor=villain_color, markersize=10),
-        plt.Line2D([0], [0], color='#888888', lw=2, label='Interação (espessura = frequência)')
+        plt.Line2D([0], [0], color=special_edge_color, lw=2, label='Maior conexão do Tony'),
+        plt.Line2D([0], [0], color='#888888', lw=2, label='Outras conexões')
     ]
     
     plt.legend(
@@ -321,9 +363,8 @@ def visualize_graph_improved(G):
     
     plt.axis('off')
     plt.tight_layout()
-    plt.savefig('mcu_network_improved.png', dpi=300, bbox_inches='tight')
+    plt.savefig('mcu_network_special_edge.png', dpi=300, bbox_inches='tight')
     plt.show()
-
 # Executando BFS e Dijkstra
 def run_algorithms(mcu):
     print("\n=== Resultados dos Algoritmos ===")
@@ -354,4 +395,4 @@ if __name__ == "__main__":
     run_algorithms(mcu_graph)
     
     # Visualizando o grafo
-    visualize_graph(G)
+    visualize_graph_improved(G)
